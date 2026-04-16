@@ -3,10 +3,10 @@
 bike-finder — Reddit research + Craigslist/Facebook Marketplace search for used bikes
 
 Usage:
-  python bike_finder.py --city vancouver --budget 500 --type commuter
+  python bike_finder.py --city vancouver --budget 500 --type commuter --height 5'10
   python bike_finder.py --setup-fb          # one-time FB login
   python bike_finder.py --research-only --type commuter --budget 400
-  python bike_finder.py --skip-fb --city seattle --budget 300 --type hybrid
+  python bike_finder.py --skip-fb --city seattle --budget 300 --type hybrid --height 178cm
 """
 
 import argparse
@@ -52,6 +52,54 @@ CRAIGSLIST_CITIES = {
     "austin": "austin",
     "phoenix": "phoenix",
 }
+
+# ── Frame sizing ─────────────────────────────────────────────────────────────
+# Standard hybrid/commuter frame sizing by rider height
+
+FRAME_SIZES = [
+    {"label": "XS", "min_cm": 0,   "max_cm": 152, "inches": (13, 14), "keywords": ["xs", "x-small", "13\"", "14\"", "13in", "14in", '13"', '14"']},
+    {"label": "S",  "min_cm": 152, "max_cm": 163, "inches": (15, 16), "keywords": ["small", "15\"", "16\"", "15in", "16in", '15"', '16"', "15 inch", "16 inch"]},
+    {"label": "M",  "min_cm": 163, "max_cm": 175, "inches": (17, 18), "keywords": ["medium", "17\"", "18\"", "17in", "18in", '17"', '18"', "17 inch", "18 inch"]},
+    {"label": "L",  "min_cm": 175, "max_cm": 183, "inches": (19, 20), "keywords": ["large", "19\"", "20\"", "19in", "20in", '19"', '20"', "19 inch", "20 inch"]},
+    {"label": "XL", "min_cm": 183, "max_cm": 191, "inches": (21, 22), "keywords": ["xl", "x-large", "21\"", "22\"", "21in", "22in", '21"', '22"', "21 inch", "22 inch"]},
+    {"label": "XXL","min_cm": 191, "max_cm": 999,  "inches": (23, 24), "keywords": ["xxl", "xx-large", "23\"", "24\"", "23in", "24in", '23"', '24"', "23 inch", "24 inch"]},
+]
+
+# Sizes clearly wrong for a given target (skip adjacent — sellers mislabel by one)
+_SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL"]
+
+
+def parse_height_cm(height_str):
+    """Parse height string to centimeters. Accepts: 5'10, 5ft10, 178, 178cm, 70in."""
+    h = height_str.strip().lower().replace('"', '').replace(' ', '')
+
+    # Feet + inches: 5'10, 5ft10, 5'10"
+    m = re.match(r"(\d+)['\']?ft?['\']?(\d+)", h) or re.match(r"(\d+)'(\d+)", height_str.strip())
+    if m:
+        return int(m.group(1)) * 30.48 + int(m.group(2)) * 2.54
+
+    # Centimeters: 178cm or bare number > 100
+    m = re.match(r"(\d+)cm$", h) or (re.match(r"(\d+)$", h) and int(h) > 100)
+    if m:
+        val = int(re.match(r"(\d+)", h).group(1))
+        return float(val)
+
+    # Inches: 70in or bare number <= 100
+    m = re.match(r"(\d+)in$", h) or (re.match(r"(\d+)$", h) and int(h) <= 100)
+    if m:
+        return int(re.match(r"(\d+)", h).group(1)) * 2.54
+
+    raise ValueError(f"Unrecognised height format: '{height_str}'. Try: 5'10  178cm  70in")
+
+
+def get_frame_size(height_str):
+    """Return the matching FRAME_SIZES entry for a height string."""
+    cm = parse_height_cm(height_str)
+    for size in FRAME_SIZES:
+        if size["min_cm"] <= cm < size["max_cm"]:
+            return size
+    return FRAME_SIZES[-1]  # fallback to XXL
+
 
 # ── Reddit research ───────────────────────────────────────────────────────────
 
@@ -253,7 +301,7 @@ NEGATIVE_KW = ["parts only", "for parts", "broken", "damaged", "project bike",
                "needs work", "as is", "cracked", "bent"]
 
 
-def score_listing(listing, recommended_brands, max_price):
+def score_listing(listing, recommended_brands, max_price, frame_size=None):
     score = 0
     title_lower = listing["title"].lower()
 
@@ -279,15 +327,35 @@ def score_listing(listing, recommended_brands, max_price):
         if kw in title_lower:
             score -= 20
 
+    # Frame size match
+    if frame_size:
+        target_idx = _SIZE_ORDER.index(frame_size["label"])
+        matched = False
+        for i, size in enumerate(FRAME_SIZES):
+            if any(kw in title_lower for kw in size["keywords"]):
+                if size["label"] == frame_size["label"]:
+                    score += 20   # exact size match
+                elif abs(i - target_idx) == 1:
+                    score += 5    # adjacent size (sellers often mislabel)
+                else:
+                    score -= 15   # clearly wrong size
+                matched = True
+                break
+        # No size info in title — neutral, no penalty
+
     return score
 
 
 # ── Output ────────────────────────────────────────────────────────────────────
 
-def format_markdown(research, listings, city, budget, bike_type):
+def format_markdown(research, listings, city, budget, bike_type, frame_size=None):
     lines = [
         f"# Used {bike_type.title()} Bike Search — {city.title()} (max ${budget})\n",
     ]
+
+    if frame_size:
+        lo, hi = frame_size["inches"]
+        lines.append(f"**Frame size:** {frame_size['label']} ({lo}\"–{hi}\" / {frame_size['min_cm']}–{frame_size['max_cm']}cm rider height)\n")
 
     if research["recommended_brands"]:
         lines.append(f"**Reddit-recommended brands:** {', '.join(research['recommended_brands'][:6])}\n")
@@ -337,6 +405,8 @@ def main():
                         help="Skip Facebook Marketplace, use Craigslist only")
     parser.add_argument("--research-only", action="store_true",
                         help="Reddit research only — no marketplace search")
+    parser.add_argument("--height", default=None,
+                        help="Rider height for frame size matching (e.g. 5'10  178cm  70in)")
     parser.add_argument("--output", choices=["markdown", "json"], default="markdown")
 
     args = parser.parse_args()
@@ -344,6 +414,16 @@ def main():
     if args.setup_fb:
         setup_fb_session()
         return
+
+    # Resolve frame size from height
+    frame_size = None
+    if args.height:
+        try:
+            frame_size = get_frame_size(args.height)
+            print(f"  Rider height: {args.height} → {frame_size['label']} frame "
+                  f"({frame_size['inches'][0]}\"–{frame_size['inches'][1]}\")")
+        except ValueError as e:
+            print(f"  Warning: {e}", file=sys.stderr)
 
     # Phase 1: Reddit
     research = run_research(args.bike_type, args.budget)
@@ -377,14 +457,14 @@ def main():
     # Phase 3: Score + rank
     print(f"\n[3/3] Scoring and ranking {len(all_listings)} listings...")
     for listing in all_listings:
-        listing["score"] = score_listing(listing, research["recommended_brands"], args.budget)
+        listing["score"] = score_listing(listing, research["recommended_brands"], args.budget, frame_size)
 
     ranked = sorted(all_listings, key=lambda x: x.get("score", 0), reverse=True)
 
     if args.output == "json":
-        print(json.dumps({"research": research, "listings": ranked[:20]}, indent=2))
+        print(json.dumps({"research": research, "listings": ranked[:20], "frame_size": frame_size}, indent=2))
     else:
-        print("\n" + format_markdown(research, ranked, args.city, args.budget, args.bike_type))
+        print("\n" + format_markdown(research, ranked, args.city, args.budget, args.bike_type, frame_size))
 
 
 if __name__ == "__main__":
