@@ -356,9 +356,8 @@ def main():
             print(f"         {p['url']}")
         return
 
-    # Build query
-    brand_hints = " ".join(research["recommended_brands"][:2])
-    query = args.query or f"{args.bike_type} bike {brand_hints}".strip()
+    # Build query — brands are used for scoring, not search (brand names in query over-filter)
+    query = args.query or f"{args.bike_type} bike"
 
     print(f"\n[2/3] Marketplace search: \"{query}\" in {args.city} (${args.min_price}–${args.budget})")
 
