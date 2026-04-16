@@ -1,17 +1,13 @@
 ---
 name: bike-advisor
-description: Use when Dave wants to find a used bike for sale in a specific city, with Reddit-informed brand/criteria research combined with Craigslist and Facebook Marketplace listing search
+description: Use when the user wants to find a used bike for sale in a specific city, with Reddit-informed brand/criteria research combined with Craigslist and Facebook Marketplace listing search
+homepage: https://github.com/daweezy13/bike-advisor
+metadata: {"openclaw": {"requires": {"bins": ["python3", "pip"]}, "emoji": "🚲"}}
 ---
 
-# Bike Finder
+# Bike Advisor
 
 CLI tool that researches bike recommendations on Reddit, then searches Craigslist and Facebook Marketplace for listings, scoring and ranking results by brand relevance, price, and condition keywords.
-
-## Script Location
-
-```
-~/.claude/skills/bike-finder/bike_finder.py
-```
 
 ## Dependencies
 
@@ -22,11 +18,11 @@ playwright install chromium
 
 Facebook Marketplace requires a one-time login setup:
 ```bash
-python ~/.claude/skills/bike-finder/bike_finder.py --setup-fb
+python {baseDir}/bike_finder.py --setup-fb
 ```
-Session saved to `~/.config/bike-finder/fb-session.json`. Only needed once.
+Session saved to `~/.config/bike-advisor/fb-session.json`. Only needed once.
 
-## Inputs to Collect from Dave
+## Inputs to Collect
 
 Before running, confirm:
 
@@ -42,32 +38,27 @@ Before running, confirm:
 
 **Full search (Craigslist + Facebook):**
 ```bash
-python ~/.claude/skills/bike-finder/bike_finder.py \
-  --city vancouver --budget 500 --type commuter
+python {baseDir}/bike_finder.py --city vancouver --budget 500 --type commuter
 ```
 
 **Craigslist only (no FB session needed):**
 ```bash
-python ~/.claude/skills/bike-finder/bike_finder.py \
-  --city seattle --budget 400 --type hybrid --skip-fb
+python {baseDir}/bike_finder.py --city seattle --budget 400 --type hybrid --skip-fb
 ```
 
 **Reddit research only:**
 ```bash
-python ~/.claude/skills/bike-finder/bike_finder.py \
-  --research-only --type commuter --budget 500
+python {baseDir}/bike_finder.py --research-only --type commuter --budget 500
 ```
 
 **Custom search query:**
 ```bash
-python ~/.claude/skills/bike-finder/bike_finder.py \
-  --city vancouver --budget 600 --query "trek hybrid commuter"
+python {baseDir}/bike_finder.py --city vancouver --budget 600 --query "trek hybrid commuter"
 ```
 
-**JSON output (for programmatic use):**
+**JSON output:**
 ```bash
-python ~/.claude/skills/bike-finder/bike_finder.py \
-  --city portland --budget 350 --output json
+python {baseDir}/bike_finder.py --city portland --budget 350 --output json
 ```
 
 ## What the Tool Does
@@ -80,4 +71,4 @@ python ~/.claude/skills/bike-finder/bike_finder.py \
 
 ## Presenting Results
 
-Pipe output directly to Dave — the markdown table format is ready to display. For follow-up questions ("show me only Trek listings"), re-run with `--query "trek commuter"`.
+The markdown table output is ready to display directly. For follow-up filtering ("show me only Trek listings"), re-run with `--query "trek commuter"`.
