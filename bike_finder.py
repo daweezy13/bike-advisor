@@ -130,16 +130,17 @@ def search_craigslist(city, query, max_price, min_price=50):
         soup = BeautifulSoup(r.text, "html.parser")
         listings = []
 
-        for item in soup.select("li.cl-search-result, li.result-row")[:25]:
-            # Support both new and legacy Craigslist layout
+        for item in soup.select("li.cl-static-search-result, li.cl-search-result, li.result-row")[:25]:
+            # Support current (cl-static-search-result) and legacy layouts
             title_el = (
-                item.select_one("[data-testid='listing-title']")
+                item.select_one("div.title")
+                or item.select_one("[data-testid='listing-title']")
                 or item.select_one(".title")
                 or item.select_one("a.cl-app-anchor span")
             )
-            price_el = item.select_one(".priceinfo") or item.select_one(".price")
-            link_el = item.select_one("a.cl-app-anchor") or item.select_one("a.result-title") or item.select_one("a")
-            location_el = item.select_one(".location") or item.select_one(".result-hood")
+            price_el = item.select_one("div.price") or item.select_one(".priceinfo") or item.select_one(".price")
+            link_el = item.select_one("a") or item.select_one("a.cl-app-anchor") or item.select_one("a.result-title")
+            location_el = item.select_one("div.location") or item.select_one(".location") or item.select_one(".result-hood")
 
             title = title_el.get_text(strip=True) if title_el else ""
             price = price_el.get_text(strip=True) if price_el else "N/A"
